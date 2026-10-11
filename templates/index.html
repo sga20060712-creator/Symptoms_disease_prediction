@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Disease Prediction</title>
+
+    <style>
+        body{
+            font-family: Arial;
+            background:#eef7fb;
+            margin:0;
+        }
+
+        .container{
+            width:900px;
+            margin:40px auto;
+            background:white;
+            padding:30px;
+            border-radius:15px;
+            box-shadow:0 0 15px rgba(0,0,0,0.15);
+        }
+
+        h1{
+            text-align:center;
+            color:#0077b6;
+        }
+
+        .info{
+            background:#f0f8ff;
+            padding:15px;
+            border-radius:10px;
+            text-align:center;
+            margin-bottom:20px;
+        }
+
+        input{
+            width:100%;
+            padding:14px;
+            font-size:17px;
+            border:1px solid #ccc;
+            border-radius:8px;
+            box-sizing:border-box;
+        }
+
+        .suggestions{
+            background:white;
+            border:1px solid #ccc;
+            max-height:180px;
+            overflow-y:auto;
+            display:none;
+            border-radius:8px;
+            margin-top:5px;
+        }
+
+        .suggestions div{
+            padding:10px;
+            cursor:pointer;
+        }
+
+        .suggestions div:hover{
+            background:#e6f4ff;
+        }
+
+        .chips{
+            margin-top:15px;
+            min-height:50px;
+            background:#f7fbff;
+            border:1px dashed #aacbe0;
+            padding:10px;
+            border-radius:10px;
+        }
+
+        .chip{
+            display:inline-block;
+            background:#0077b6;
+            color:white;
+            padding:8px 12px;
+            border-radius:20px;
+            margin:5px;
+        }
+
+        .chip span{
+            cursor:pointer;
+            margin-left:8px;
+            font-weight:bold;
+        }
+
+        button{
+            width:100%;
+            padding:14px;
+            background:#0077b6;
+            color:white;
+            border:none;
+            border-radius:8px;
+            font-size:18px;
+            margin-top:20px;
+            cursor:pointer;
+        }
+
+        button:hover{
+            background:#005f8c;
+        }
+
+        .result{
+            margin-top:30px;
+            padding:25px;
+            background:#f1fff4;
+            border:1px solid #9de2ae;
+            border-radius:12px;
+        }
+
+        .danger{
+            color:red;
+            font-weight:bold;
+        }
+
+        ul{
+            line-height:1.8;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <h1>AI Disease Prediction Using Symptoms</h1>
+
+    <div class="info">
+        <b>Algorithm:</b> {{ model_info.algorithm }} |
+        <b>Accuracy:</b> {{ model_info.accuracy }}% |
+        <b>Total Diseases:</b> {{ model_info.total_diseases }} |
+        <b>Total Symptoms:</b> {{ model_info.total_symptoms }}
+    </div>
+
+    <form method="POST" onsubmit="return prepareSymptoms();">
+        <h3>Search and Add Symptoms</h3>
+
+        <input type="text" id="searchBox" placeholder="Type symptom like fever, headache, vomiting...">
+
+        <div id="suggestions" class="suggestions"></div>
+
+        <h3>Selected Symptoms</h3>
+        <div id="chips" class="chips">
+            <p>No symptoms selected</p>
+        </div>
+
+        <input type="hidden" name="symptoms" id="hiddenSymptoms">
+
+        <button type="submit">Predict Disease</button>
+    </form>
+
+    {% if result %}
+    <div class="result">
+        <h2>Prediction Result</h2>
+
+        <p><b>Disease:</b> {{ result.disease }}</p>
+        <p><b>Confidence:</b> {{ result.confidence }}%</p>
+
+        <h3>Matched Symptoms</h3>
+        <p>{{ result.matched_symptoms | join(", ") }}</p>
+
+        <h3>Description</h3>
+        <p>{{ result.description }}</p>
+
+        <h3>Precautions</h3>
+        <ul>
+            {% for p in result.precautions %}
+            <li>{{ p }}</li>
+            {% endfor %}
+        </ul>
+
+        <p class="danger">
+            This is an AI preliminary prediction. Please consult a doctor.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+const symptoms = {{ all_symptoms|tojson }};
+
+let selectedSymptoms = [];
+
+const searchBox = document.getElementById("searchBox");
+const suggestionsBox = document.getElementById("suggestions");
+const chipsBox = document.getElementById("chips");
+const hiddenSymptoms = document.getElementById("hiddenSymptoms");
+
+function displayName(symptom){
+    return symptom.replace(/_/g," ").replace(/\b\w/g,function(l){
+        return l.toUpperCase();
+    });
+}
+
+searchBox.addEventListener("keyup", function(){
+    const query = this.value.toLowerCase().trim();
+
+    suggestionsBox.innerHTML = "";
+
+    if(query === ""){
+        suggestionsBox.style.display = "none";
+        return;
+    }
+
+    const matches = symptoms.filter(function(item){
+        return item.toLowerCase().includes(query.replace(/ /g,"_")) ||
+               displayName(item).toLowerCase().includes(query);
+    }).slice(0,10);
+
+    if(matches.length === 0){
+        suggestionsBox.style.display = "none";
+        return;
+    }
+
+    matches.forEach(function(symptom){
+        const div = document.createElement("div");
+        div.innerText = displayName(symptom);
+
+        div.onclick = function(){
+            addSymptom(symptom);
+            searchBox.value = "";
+            suggestionsBox.style.display = "none";
+        };
+
+        suggestionsBox.appendChild(div);
+    });
+
+    suggestionsBox.style.display = "block";
+});
+
+function addSymptom(symptom){
+    if(selectedSymptoms.indexOf(symptom) === -1){
+        selectedSymptoms.push(symptom);
+        renderChips();
+    }
+}
+
+function removeSymptom(symptom){
+    selectedSymptoms = selectedSymptoms.filter(function(item){
+        return item !== symptom;
+    });
+
+    renderChips();
+}
+
+function renderChips(){
+    chipsBox.innerHTML = "";
+
+    if(selectedSymptoms.length === 0){
+        chipsBox.innerHTML = "<p>No symptoms selected</p>";
+        return;
+    }
+
+    selectedSymptoms.forEach(function(symptom){
+        const chip = document.createElement("div");
+        chip.className = "chip";
+
+        const text = document.createTextNode(displayName(symptom) + " ");
+        chip.appendChild(text);
+
+        const close = document.createElement("span");
+        close.innerHTML = "&times;";
+        close.onclick = function(){
+            removeSymptom(symptom);
+        };
+
+        chip.appendChild(close);
+        chipsBox.appendChild(chip);
+    });
+}
+
+function prepareSymptoms(){
+    if(selectedSymptoms.length === 0){
+        alert("Please select at least one symptom.");
+        return false;
+    }
+
+    hiddenSymptoms.value = selectedSymptoms.join(",");
+    return true;
+}
+</script>
+
+</body>
+</html>

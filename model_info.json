@@ -1,0 +1,6 @@
+{
+    "algorithm": "XGBoost Classifier",
+    "accuracy": 100.0,
+    "total_symptoms": 131,
+    "total_diseases": 41
+}
